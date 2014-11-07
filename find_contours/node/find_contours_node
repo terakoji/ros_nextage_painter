@@ -13,9 +13,14 @@ from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 
-class FindContoursNode():
+from geometry_msgs.msg import Point
+from find_contours.srv import *
+from find_contours.msg import PointSeq
+
+
+class FindContoursNode:
     def __init__(self):
-        self.node_name = "find_contours"
+        self.node_name = 'find_contours'
         
         rospy.init_node(self.node_name)
         
@@ -32,14 +37,28 @@ class FindContoursNode():
         
         # Subscribe to the camera image and depth topics and set
         # the appropriate callbacks
-        self.image_sub = rospy.Subscriber("/image", Image, self.image_callback)
-        
-        rospy.loginfo("Waiting for image topics...")
+        self._image_sub = rospy.Subscriber('~image', Image, self.image_callback)
+
+        # Service for find contours.
+        self._contours_srv = rospy.Service('~find_contours', FindContours, self._find_contours)
+
+        rospy.loginfo('Waiting for image topics...')
+
+    def _find_contours(self, req):
+        point = Point()
+        point.x = 1
+        point.y = 2
+        point.z = 3
+        point_seq = PointSeq()
+        point_seq.points.append(point)
+        res = FindContoursResponse()
+        res.contours.append(point_seq)
+        return res
 
     def image_callback(self, ros_image):
         # Use cv_bridge() to convert the ROS image to OpenCV format
         try:
-            frame = self.bridge.imgmsg_to_cv(ros_image, "bgr8")
+            frame = self.bridge.imgmsg_to_cv(ros_image, 'bgr8')
         except CvBridgeError, e:
             print e
         
@@ -59,7 +78,7 @@ class FindContoursNode():
             cc = chr(self.keystroke).lower()
             if cc == 'q':
                 # The user has press the q key, so exit
-                rospy.signal_shutdown("User hit q key to quit.")
+                rospy.signal_shutdown('User hit q key to quit.')
                 
     def process_image(self, frame):
         # Convert to greyscale
@@ -82,7 +101,7 @@ class FindContoursNode():
         cv2.drawContours(frame ,self._contours, -1, (0,255,0), 0)
         cv2.drawContours(edges ,self._contours, -1, (255,255,255), 0)
 
-        print "contour size = " + str(len(self._contours))
+        print 'contour size = ' + str(len(self._contours))
 
         # break
         #import ipdb; ipdb.set_trace()
@@ -93,7 +112,7 @@ class FindContoursNode():
         return [x for x in contours if len(x) > minimum_len]
 
     def cleanup(self):
-        print "Shutting down vision node."
+        print 'Shutting down node.'
         cv2.destroyAllWindows()   
 
 def main(args):       
@@ -101,7 +120,7 @@ def main(args):
         FindContoursNode()
         rospy.spin()
     except KeyboardInterrupt:
-        print "Shutting down vision node."
+        print 'Shutting down node.'
         cv.DestroyAllWindows()
 
 if __name__ == '__main__':
