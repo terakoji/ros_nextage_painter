@@ -75,12 +75,23 @@ class FindContoursNode():
         contours, hierarchy = cv2.findContours(edges, cv2.RETR_EXTERNAL,\
                                                    cv2.CHAIN_APPROX_SIMPLE)
         
-        # draw
-        cv2.drawContours(frame ,contours, -1, (0,255,0), 0)
+        # thin out edges
+        self._contours = self.filter_small_seq(contours, minimum_len = 50)
 
-        print "contour size = " + str(len(contours))
+        # draw
+        cv2.drawContours(frame ,self._contours, -1, (0,255,0), 0)
+        cv2.drawContours(edges ,self._contours, -1, (255,255,255), 0)
+
+        print "contour size = " + str(len(self._contours))
+
+        # break
+        #import ipdb; ipdb.set_trace()
+        #return frame
         return edges
     
+    def filter_small_seq(self, contours, minimum_len = 10):
+        return [x for x in contours if len(x) > minimum_len]
+
     def cleanup(self):
         print "Shutting down vision node."
         cv2.destroyAllWindows()   
