@@ -12,6 +12,7 @@ import cv2
 from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
+from threading import Lock
 
 from geometry_msgs.msg import Point
 from find_contours.srv import *
@@ -43,16 +44,17 @@ class FindContoursNode:
         self._contours_srv = rospy.Service('~find_contours', FindContours, self._find_contours)
 
         rospy.loginfo('Waiting for image topics...')
+        
+        self._lock = Lock()
 
     def _find_contours(self, req):
-        point = Point()
-        point.x = 1
-        point.y = 2
-        point.z = 3
-        point_seq = PointSeq()
-        point_seq.points.append(point)
-        res = FindContoursResponse()
-        res.contours.append(point_seq)
+        long_side = float(max(self._shape))
+        with self._lock:
+            res = FindContoursResponse()
+            for contour in self._contours:
+                point_seq = PointSeq()
+                point_seq.points = [Point(x=point[0][0]/long_side, y=point[0][1]/long_side, z=0.0) for point in contour] 
+                res.contours.append(point_seq)
         return res
 
     def image_callback(self, ros_image):
@@ -84,24 +86,27 @@ class FindContoursNode:
         # Convert to greyscale
         grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
+        # Get image size
+        self._shape = frame.shape
+
         # Blur the image
         grey = cv2.blur(grey, (7, 7))
         
         # Compute edges using the Canny edge filter
         edges = cv2.Canny(grey, 30.0, 100.0)
 
-        # Create contorus
-        contours, hierarchy = cv2.findContours(edges, cv2.RETR_EXTERNAL,\
-                                                   cv2.CHAIN_APPROX_SIMPLE)
-        
-        # thin out edges
-        self._contours = self.filter_small_seq(contours, minimum_len = 50)
+        with self._lock:
+            # Create contorus
+            contours, hierarchy = cv2.findContours(edges, cv2.RETR_EXTERNAL,\
+                                                       cv2.CHAIN_APPROX_SIMPLE)
+            # thin out edges
+            self._contours = self.filter_small_seq(contours, minimum_len = 50)
 
         # draw
         cv2.drawContours(frame ,self._contours, -1, (0,255,0), 0)
         cv2.drawContours(edges ,self._contours, -1, (255,255,255), 0)
 
-        print 'contour size = ' + str(len(self._contours))
+        # print 'contour size = ' + str(len(self._contours))
 
         # break
         #import ipdb; ipdb.set_trace()
